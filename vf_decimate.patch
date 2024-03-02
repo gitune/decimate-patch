@@ -1,0 +1,38 @@
+diff -ru ffmpeg-6.1.1/libavfilter/vf_decimate.c ffmpeg-6.1.1.mod/libavfilter/vf_decimate.c
+--- ffmpeg-6.1.1/libavfilter/vf_decimate.c	2023-11-10 09:30:16.000000000 +0900
++++ ffmpeg-6.1.1.mod/libavfilter/vf_decimate.c	2024-03-01 10:59:17.196586828 +0900
+@@ -55,6 +55,7 @@
+     AVRational in_tb;       // input time-base
+     AVRational nondec_tb;   // non-decimated time-base
+     AVRational dec_tb;      // decimated time-base
++    int last_duppos;        // last duppos
+ 
+     /* options */
+     int cycle;
+@@ -180,6 +181,7 @@
+         if (!prv) {
+             dm->queue[dm->fid].maxbdiff = INT64_MAX;
+             dm->queue[dm->fid].totdiff  = INT64_MAX;
++            dm->last_duppos = -1;
+         } else {
+             calc_diffs(dm, &dm->queue[dm->fid], prv, in);
+         }
+@@ -200,10 +202,17 @@
+         if (dm->queue[lowest].maxbdiff < dm->dupthresh)
+             duppos = lowest;
+ 
++        if (dm->last_duppos >= 0)
++            if (duppos != dm->last_duppos && dm->queue[dm->last_duppos].maxbdiff < dm->dupthresh)
++                duppos = dm->last_duppos;
++        dm->last_duppos = duppos;
++
+         if (dm->mixed && duppos < 0) {
+             drop = -1; // no drop if mixed content + no frame in cycle below threshold
++        } else if (duppos < 0) {
++            drop = scpos >= 0 ? scpos : lowest;
+         } else {
+-            drop = scpos >= 0 && duppos < 0 ? scpos : lowest;
++            drop = duppos;
+         }
+     }
+ 

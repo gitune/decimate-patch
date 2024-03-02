@@ -1,2 +1,35 @@
 # decimate-patch
 A patch for the ffmpeg's vf_decimate filter.
+
+# これは何？
+
+ffmpegのvisual filterであるdecimateの動作をちょっと変える小さなパッチです。
+
+# 参考
+
+* [FFmpeg Filters Documentation](https://ffmpeg.org/ffmpeg-filters.html#decimate-1)
+* [https://github.com/FFmpeg/FFmpeg/blob/master/libavfilter/vf_decimate.c](https://github.com/FFmpeg/FFmpeg/blob/master/libavfilter/vf_decimate.c)
+
+# 詳細
+
+decimate filterはde-telecine処理後に生じる重複フレームを削除するためのfilterで、fieldmatch filterなどとよく併用されます。小さなコードなのでその挙動は直接読むとよく分かりますが、設定されたcycle(defaultは5フレーム)毎に重複フレームを削除し、pts等も適宜フレーム数に合わせて調整してくれる、という優れものです。
+
+ここで、decimateのoriginalのlogicでは1 cycle毎に削除される重複フレームは基本「前のフレームとの差分が最少になるもの」が選ばれます(mixed=0の時は差分が最少のもの、もしくはscene changeと判定されたframeが無条件に、mixed=1の時は差分が最少なものがdupthreshを下回った時だけ)。ただこの挙動には以下のような問題があるように思いました。
+
+1. telecined 60iのソースをfieldmatchして30pに変換したものが入力されたと仮定します。このとき、入力には5フレームに1枚、重複したフレームが含まれます
+2. ある1 cycleでの各フレームの前フレームからの差分が例えば、「多最少多多多」だったとします。このとき削除されるのは2番目のフレームです
+3. その次のcycleでの各フレームの差分が「少少多最少少」だったとすると、decimate filterは4番目のフレームを削除します
+
+つまりdecimate filterはcycle間での削除フレームの位置は一切気にしていないため、cycle毎に削除フレームの位置が変化し、結果本来のタイミングで表示されないフレームが生じることがあります(上の例では2つ目のcycleの3番目のフレームは本来2番目に表示されるべきところが3番目に表示されることになる)。ほとんどの場合はうまく動きますし、表示タイミングがズレるといっても1フレーム分前後に動く程度なので気づかないケースが大半だとは思いますが、それでも各フレームが本来表示されるべきでないタイミングで表示される、という事実は気持ち悪いものです。特に日本のアニメのように3コマ打ち、2コマ打ち等のリミテッドが基本となっている場合もともと重複しているフレームが多数ありますから、de-telecineにより生じた重複フレームではなくもともとの映像に含まれていた重複フレームが削除されタイミングがずれるケースが多発することになります。
+
+本patchは、下記のような処理を加えることでcycle毎に削除されるフレームの位置をできるだけ固定化するためのものです。
+
+1. dupthreshを下回り、重複フレームと判定されたフレームのcycle内での位置を覚えておきます
+   * なおmixed=0の時は重複として判定されずともscene change or lowestが無条件に削除されるため本patchの効果はありません
+2. cycle内でlowest(差分が最少)と判断され、かつdupthreshを下回ったフレーム(重複と判定されたフレーム)の位置がひとつ前のcycleと異なる場合、ひとつ前のcycleで削除されたフレームと同じ位置にあるフレームがdupthreshを下回るかどうかを確認し、もしそちらもdupthreshを下回っているのであれば、重複と判定するフレームをlowestではなく前cycleと同じ位置にあるフレームに入れ替えます
+
+そのcycleで最少でなくともdupthreshを下回るのであれば十分重複フレームとみなしてよかろう、それよりもcycle間での削除フレームの位置を合わせリズムを保つことのほうが重要、という挙動となるpatchですね。
+
+なお、上記でもmixedフラグにより変わる挙動について触れていますが、decimate fitlerはmixed=0の場合入力が完全にtelecinedソースであると仮定し、常に5フレームcycleから1フレーム削除しようとします。この場合は実はdupthreshはあまり効いておらず(せいぜいscene changeと被った時にもしdupthreshを下回るフレームがあれば優先される程度)、そのせいかdupthreshのdefault値1.1は手元で `-loglevel debug` をつけて検証する限りちょっと小さすぎる値なように思いました(de-telecineしたソースを入力した場合も重複フレームがほとんどdup判定されない)。当方の環境では `dupthresh=3.0` くらいがちょいどよい感じでした。
+
+なおこちらでは `mixed=1` としてしか利用していないため `mixed=0` 時の挙動はほぼ未確認です。注意。
