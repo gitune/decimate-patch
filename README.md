@@ -3,7 +3,7 @@ A patch for the ffmpeg's vf_decimate filter.
 
 # これは何？
 
-ffmpegのvisual filterであるdecimateの動作をちょっと変える小さなパッチです。
+ffmpegのvisual filterであるdecimateの動作をちょっと変える小さなパッチです。なお本patchはffmpeg 6.1.1で作成しましたが、decimate filterはもう2年ほどupdateないようなのでそれ以前のversionに対しても当たるのではないかと思われます。
 
 # 参考
 
