@@ -30,6 +30,6 @@ decimate filterはde-telecine処理後に生じる重複フレームを削除す
 
 そのcycleで最少でなくともdupthreshを下回るのであれば十分重複フレームとみなしてよかろう、それよりもcycle間での削除フレームの位置を合わせリズムを保つことのほうが重要、という挙動となるpatchですね。
 
-なお、上記でもmixedフラグにより変わる挙動について触れていますが、decimate fitlerはmixed=0の場合入力が完全にtelecinedソースであると仮定し、常に5フレームcycleから1フレーム削除しようとします。この場合は実はdupthreshはあまり効いておらず(せいぜいscene changeと被った時にもしdupthreshを下回るフレームがあれば優先される程度)、そのせいかdupthreshのdefault値1.1は手元で `-loglevel debug` をつけて検証する限りちょっと小さすぎる値なように思いました(de-telecineしたソースを入力した場合も重複フレームがほとんどdup判定されない)。当方の環境では `dupthresh=3.0` くらいがちょいどよい感じでした。
+なお、上記でもmixedフラグにより変わる挙動について触れていますが、decimate fitlerはmixed=0の場合入力が完全にtelecinedソースであると仮定し、常に5フレームcycleから1フレーム削除しようとします。この場合は実はdupthreshはあまり効いておらず(せいぜいscene changeと被った時にもしdupthreshを下回るフレームがあれば優先される程度)、そのせいかdupthreshのdefault値1.1は手元で `-loglevel debug` をつけて検証する限りちょっと小さすぎる値なように思いました(de-telecineしたソースを入力した場合も重複フレームがほとんどdup判定されない)。当方の環境では `dupthresh=5.0` くらいがちょいどよい感じでした。
 
 なおこちらでは `mixed=1` としてしか利用していないため `mixed=0` 時の挙動はほぼ未確認です。注意。
